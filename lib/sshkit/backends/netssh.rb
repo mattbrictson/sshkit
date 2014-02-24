@@ -123,6 +123,7 @@ module SSHKit
         command(*args).tap do |cmd|
           output << cmd
           cmd.started = true
+          ssh_out = {}
           ssh.open_channel do |chan|
             chan.request_pty if Netssh.config.pty
             chan.exec cmd.to_command do |ch, success|
@@ -139,8 +140,8 @@ module SSHKit
               chan.on_request("exit-status") do |ch, data|
                 cmd.stdout = ''
                 cmd.stderr = ''
-                cmd.exit_status = data.read_long
-                output << cmd
+                # Capture the status for use later after ssh loop exits.
+                ssh_out["exit_status"] = data.read_long
               end
               #chan.on_request("exit-signal") do |ch, data|
               #  # TODO: This gets called if the program is killed by a signal
@@ -164,6 +165,10 @@ module SSHKit
             chan.wait
           end
           ssh.loop
+          if ssh_out["exit_status"]
+            cmd.exit_status = ssh_out["exit_status"]
+            output << cmd
+          end
         end
       end
 
